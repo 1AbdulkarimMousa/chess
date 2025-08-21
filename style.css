@@ -1,0 +1,42 @@
+.chess-tile {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    line-height: 1;
+    user-select: none;
+    font-family: "Segoe UI Symbol","Noto Sans Symbols2","DejaVu Sans",sans-serif;
+}
+
+.row-label, .col-label, .corner-label {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+}
+.row-label {
+    width: 30px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+.col-label {
+    width: 60px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+.corner-label {
+    width: 30px;
+    height: 30px;
+}
+textarea {
+    font-family: monospace;
+    resize: none;
+}

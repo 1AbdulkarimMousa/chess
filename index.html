@@ -1,152 +1,56 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Chess Compiler Project</title>
-    <script src="//unpkg.com/alpinejs" defer></script>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
-    <style>
-        .chess-tile {
-            width: 60px;
-            height: 60px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2rem;
-            line-height: 1;
-        }
-        .row-label {
-            width: 30px;
-            height: 60px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1rem;
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-        }
-        .col-label {
-            width: 60px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1rem;
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-        }
-        .corner-label {
-            width: 30px;
-            height: 30px;
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-        }
-    </style>
+    <script src="https://unpkg.com/alpinejs" defer></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC"
+          crossorigin="anonymous">
+    <link rel="stylesheet" href="style.css">
 </head>
-<body x-data="{
-    from: null,
-    to: null,
-    p1: [
-        { name: 'P1 pawn1',   position: 'a2', symbol: '♙', type: 'pawn' },
-        { name: 'P1 pawn2',   position: 'b2', symbol: '♙', type: 'pawn' },
-        { name: 'P1 pawn3',   position: 'c2', symbol: '♙', type: 'pawn' },
-        { name: 'P1 pawn4',   position: 'd2', symbol: '♙', type: 'pawn' },
-        { name: 'P1 pawn5',   position: 'e2', symbol: '♙', type: 'pawn' },
-        { name: 'P1 pawn6',   position: 'f2', symbol: '♙', type: 'pawn' },
-        { name: 'P1 pawn7',   position: 'g2', symbol: '♙', type: 'pawn' },
-        { name: 'P1 pawn8',   position: 'h2', symbol: '♙', type: 'pawn' },
-        { name: 'P1 rook1',   position: 'a1', symbol: '♖', type: 'rook' },
-        { name: 'P1 knight1', position: 'b1', symbol: '♘', type: 'knight' },
-        { name: 'P1 bishop1', position: 'c1', symbol: '♗', type: 'bishop' },
-        { name: 'P1 queen',   position: 'd1', symbol: '♕', type: 'queen' },
-        { name: 'P1 king',    position: 'e1', symbol: '♔', type: 'king' },
-        { name: 'P1 bishop2', position: 'f1', symbol: '♗', type: 'bishop' },
-        { name: 'P1 knight2', position: 'g1', symbol: '♘', type: 'knight' },
-        { name: 'P1 rook2',   position: 'h1', symbol: '♖', type: 'rook' }
-    ],
-    p2: [
-        { name: 'P2 pawn1',   position: 'a7', symbol: '♟', type: 'pawn' },
-        { name: 'P2 pawn2',   position: 'b7', symbol: '♟', type: 'pawn' },
-        { name: 'P2 pawn3',   position: 'c7', symbol: '♟', type: 'pawn' },
-        { name: 'P2 pawn4',   position: 'd7', symbol: '♟', type: 'pawn' },
-        { name: 'P2 pawn5',   position: 'e7', symbol: '♟', type: 'pawn' },
-        { name: 'P2 pawn6',   position: 'f7', symbol: '♟', type: 'pawn' },
-        { name: 'P2 pawn7',   position: 'g7', symbol: '♟', type: 'pawn' },
-        { name: 'P2 pawn8',   position: 'h7', symbol: '♟', type: 'pawn' },
-        { name: 'P2 rook1',   position: 'a8', symbol: '♜', type: 'rook' },
-        { name: 'P2 knight1', position: 'b8', symbol: '♞', type: 'knight' },
-        { name: 'P2 bishop1', position: 'c8', symbol: '♝', type: 'bishop' },
-        { name: 'P2 queen',   position: 'd8', symbol: '♛', type: 'queen' },
-        { name: 'P2 king',    position: 'e8', symbol: '♚', type: 'king' },
-        { name: 'P2 bishop2', position: 'f8', symbol: '♝', type: 'bishop' },
-        { name: 'P2 knight2', position: 'g8', symbol: '♞', type: 'knight' },
-        { name: 'P2 rook2',   position: 'h8', symbol: '♜', type: 'rook' }
-    ],
-    rules: {},
-    history: '',
-    move(item, to) {
-        this.validateMove(item, to);
-        item.position = to;
-        this.from = null;
-        this.to = null;
-    }, 
-    validateMove(item, to) {
-        this.history += `${item.name} to ${to}\n`;
-        // Add chess move validation logic here
-    },
-    tileSymbol(position) {
-        const piece = this.p1.find(p => p.position === position) || this.p2.find(p => p.position === position);
-        return piece ? piece.symbol : '';
-    },
-    selectTile(position) {
-        if (this.from) {
-            const piece = this.p1.find(p => p.position === this.from) || this.p2.find(p => p.position === this.from);
-            if (piece && position !== this.from) {
-                this.to = position;
-                this.move(piece, this.to);
-            } else {
-                this.from = null;
-            }
-        } else {
-            const piece = this.p1.find(p => p.position === position) || this.p2.find(p => p.position === position);
-            if (piece) {
-                this.from = position;
-            }
-        }
-    }
-}" >
-    <h1 class="text-center my-4">Chess Project</h1>
+<body x-data="chessApp()">
+    <h1 class="text-center my-4">♟ Chess Project</h1>
     <div class="container">
-        <!-- CHESS UI -->
         <template x-for="row in [8, 7, 6, 5, 4, 3, 2, 1]">
-            <div class="row">
+            <div class="row g-0">
                 <div class="row-label" x-text="row"></div>
                 <template x-for="col in ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']">
-                    <div class="col-1 border text-center chess-tile" 
-                         x-bind:id="`${col}${row}`"
+                    <div class="col-1 border chess-tile text-center"
+                         :id="`${col}${row}`"
                          x-text="tileSymbol(col + row)"
                          :class="{
-                             'bg-success text-white': from === `${col}${row}` && p1.find(p => p.position === `${col}${row}`),
-                             'bg-primary text-white': from === `${col}${row}` && p2.find(p => p.position === `${col}${row}`),
-                             'bg-light': from !== `${col}${row}` && (col.charCodeAt(0) - 97 + row) % 2,
-                             'bg-dark text-white': from !== `${col}${row}` && !(col.charCodeAt(0) - 97 + row) % 2
-                         }"
-                         @click="selectTile(`${col}${row}`)">
+                             'bg-light': (col.charCodeAt(0) - 97 + row) % 2,
+                             'bg-dark text-white': !((col.charCodeAt(0) - 97 + row) % 2)
+                         }">
                     </div>
                 </template>
             </div>
         </template>
-        <div class="row">
+        <div class="row g-0">
             <div class="corner-label"></div>
             <template x-for="col in ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']">
                 <div class="col-1 col-label" x-text="col"></div>
             </template>
         </div>
-        <!-- CHESS HISTORY -->
+
         <div class="mt-4">
             <h2>Move History</h2>
             <textarea class="form-control" rows="10" readonly x-text="history"></textarea>
         </div>
+
+        <div class="mt-4">
+            <h2>Enter Move</h2>
+            <div class="input-group mb-2">
+                <input type="text" class="form-control"
+                       placeholder="e.g. e4, Nf3, exd5+"
+                       x-model="moveInput">
+                <button class="btn btn-primary" @click="scanMove()">Play</button>
+            </div>
+        </div>
     </div>
+
+    <script src="app.js"></script>
 </body>
 </html>
