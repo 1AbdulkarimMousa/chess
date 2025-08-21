@@ -88,6 +88,20 @@ function chessApp() {
         return {type: "PieceMove", piece, square, capture, check}
        },
 
+       parsePawnMove() {
+        file = null; capture = null;
+        if (this.peek().type == "FILE" && this.peek(1).type == "CAPTURE") {
+            file = this.consume("FILE").value;
+            capture = this.consume("CAPTURE").value;
+        }
+        square = this.parseSquare(); check = null;
+        if(this.peek().type == "CHECK" || this.peek.type == "CHECKMAKE") {
+            check = this.consume(this.peek().type).value;
+        }
+        this.consume("END");
+        return { type : "PawnMove", file, square, capture, check};
+       },
+
        parseSquare() {
         file = this.consume("FILE").value;
         rank = this.consume("RANK").value;
