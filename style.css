@@ -1,42 +1,70 @@
 .chess-tile {
-    width: 60px;
-    height: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2rem;
-    line-height: 1;
-    user-select: none;
-    font-family: "Segoe UI Symbol","Noto Sans Symbols2","DejaVu Sans",sans-serif;
-}
-
-.row-label, .col-label, .corner-label {
-    background-color: #f8f9fa;
-    border: 1px solid #dee2e6;
-}
+ width: 60px;
+height: 60px;
+display: flex;
+align-items: center;
+justify-content: center;
+font-size: 2rem;
+line-height: 1;
+cursor: pointer;
+transition: all 0.2s ease;
+ }
 .row-label {
-    width: 30px;
-    height: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.9rem;
-    font-weight: 500;
-}
+width: 30px;
+height: 60px;
+display: flex;
+align-items: center;
+justify-content: center;
+font-size: 1rem;
+background-color: #f8f9fa;
+border: 1px solid #dee2e6;
+ }
 .col-label {
-    width: 60px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.9rem;
-    font-weight: 500;
-}
+width: 60px;
+height: 30px;
+display: flex;
+align-items: center;
+justify-content: center;
+font-size: 1rem;
+background-color: #f8f9fa;
+border: 1px solid #dee2e6;
+ }
 .corner-label {
-    width: 30px;
-    height: 30px;
+width: 30px;
+height: 30px;
+background-color: #f8f9fa;
+border: 1px solid #dee2e6;
+ }
+.predicted-move {
+position: relative;
 }
-textarea {
-    font-family: monospace;
-    resize: none;
+.predicted-move::after {
+content: '';
+position: absolute;
+top: 50%;
+left: 50%;
+transform: translate(-50%, -50%);
+width: 12px;
+height: 12px;
+background-color: #28a745;
+border-radius: 50%;
+opacity: 0.8;
+z-index: 10;
+}
+.predicted-capture {
+position: relative;
+box-shadow: inset 0 0 0 3px #dc3545;
+}
+.predicted-capture::after {
+content: '';
+position: absolute;
+top: 50%;
+left: 50%;
+transform: translate(-50%, -50%);
+width: 8px;
+height: 8px;
+background-color: #dc3545;
+border-radius: 50%;
+opacity: 0.8;
+z-index: 10;
 }
