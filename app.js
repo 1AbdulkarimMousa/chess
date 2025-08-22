@@ -1,13 +1,20 @@
 function chessCompiler() {
     return {
-        // BOARD DATA
+        // ==========================================
+        // PHASE 1: DATA STRUCTURES & INITIALIZATION
+        // ==========================================
+        
+        // BOARD STATE
         from: null,
         to: null,
         line: '',
         history: '',
         currentPlayer: 'p1',
-        predictedMoves: [], // New: store predicted moves
+        predictedMoves: [],
+        gameOver: false,
+        gameResult: '',
         
+        // PIECE ARRAYS
         p1: [
             { name: 'P1 pawn1',   position: 'a2', symbol: '♙', type: 'pawn' },
             { name: 'P1 pawn2',   position: 'b2', symbol: '♙', type: 'pawn' },
@@ -45,105 +52,26 @@ function chessCompiler() {
             { name: 'P2 rook2',   position: 'h8', symbol: '♜', type: 'rook' }
         ],
 
-        // COMPILER VARIABLES
-        letters: [],  // Store the letters we find
-        where: 0,     // Which letter we're looking at
+        // LEXICAL ANALYSIS VARIABLES
+        letters: [],
+        where: 0,
 
-        // NEW: Predict all legal moves for a piece
-        predictMoves(piece) {
-            console.log(`Predicting moves for ${piece.name} at ${piece.position}`);
-            this.predictedMoves = [];
-            
-            // Generate all possible squares
-            const columns = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-            const rows = [1, 2, 3, 4, 5, 6, 7, 8];
-            
-            for (let col of columns) {
-                for (let row of rows) {
-                    let targetSquare = col + row;
-                    
-                    // Skip the piece's current position
-                    if (targetSquare === piece.position) continue;
-                    
-                    try {
-                        // Check if this move would be legal
-                        this.checkIfMoveIsOk(piece, targetSquare);
-                        
-                        // If we get here, the move is legal
-                        let pieceAtTarget = this.whatPieceIsAt(targetSquare);
-                        let isCapture = pieceAtTarget && !this.isMyPiece(pieceAtTarget);
-                        
-                        this.predictedMoves.push({
-                            square: targetSquare,
-                            isCapture: isCapture
-                        });
-                        
-                    } catch (error) {
-                        // Move is not legal, skip it
-                    }
-                }
-            }
-            
-            console.log(`Found ${this.predictedMoves.length} legal moves:`, this.predictedMoves);
-        },
-
-        // NEW: Check if a square is a predicted move
-        isPredictedMove(square) {
-            return this.predictedMoves.some(move => move.square === square);
-        },
-
-        // NEW: Check if a square is a predicted capture
-        isPredictedCapture(square) {
-            return this.predictedMoves.some(move => move.square === square && move.isCapture);
-        },
-
-        // NEW: Clear predictions
-        clearPredictions() {
-            this.predictedMoves = [];
-        },
-
-        // MAIN FUNCTION - This is what gets called
-        scanMove() {
-            try {
-                console.log("=== STARTING TO READ MOVE: " + this.line + " ===");
-                
-                // STEP 1: Break the text into letters
-                this.breakIntoLetters();
-                
-                // STEP 2: Figure out what the letters mean
-                let moveInfo = this.figureOutMove();
-                
-                // STEP 3: Find the chess piece
-                let piece = this.findChessPiece(moveInfo);
-                
-                // STEP 4: Check if move is legal
-                this.checkIfMoveIsOk(piece, moveInfo.target);
-                
-                // STEP 5: Move the piece
-                this.move(piece, moveInfo.target);
-                
-                this.history += `Move: ${this.line}\n`;
-                this.line = '';
-                
-            } catch (error) {
-                alert("ERROR: " + error.message);
-                this.history += `Error: ${this.line} - ${error.message}\n`;
-            }
-        },
-
-        // STEP 1: Break text into letters
+        // ==========================================
+        // PHASE 2: LEXICAL ANALYSIS (TOKENIZATION)
+        // ==========================================
+        
         breakIntoLetters() {
-            console.log("STEP 1: Breaking into letters");
+            console.log("PHASE 2: LEXICAL ANALYSIS - Breaking into tokens");
             this.letters = [];
             
             for (let i = 0; i < this.line.length; i++) {
                 let letter = this.line[i];
                 
                 if (letter === ' ') {
-                    continue; // Skip spaces
+                    continue; // Skip whitespace
                 }
                 
-                // Check what type of letter this is
+                // TOKEN CLASSIFICATION
                 if (letter === 'K' || letter === 'Q' || letter === 'R' || letter === 'B' || letter === 'N') {
                     this.letters.push({ type: 'PIECE', letter: letter });
                 } 
@@ -163,35 +91,39 @@ function chessCompiler() {
                     this.letters.push({ type: 'CHECKMATE', letter: letter });
                 } 
                 else {
-                    throw new Error("I don't understand this letter: " + letter);
+                    throw new Error("LEXICAL ERROR: Unknown token '" + letter + "'");
                 }
             }
             
-            console.log("Letters I found:", this.letters);
+            console.log("Tokens found:", this.letters);
         },
 
-        // STEP 2: Figure out what the move means
+        // ==========================================
+        // PHASE 3: SYNTAX ANALYSIS (PARSING)
+        // ==========================================
+        
         figureOutMove() {
-            console.log("STEP 2: Figuring out what the move means");
-            this.where = 0; // Start at the beginning
+            console.log("PHASE 3: SYNTAX ANALYSIS - Parsing move structure");
+            this.where = 0; // Reset parser position
+            
+            if (this.letters.length === 0) {
+                throw new Error("SYNTAX ERROR: Empty move");
+            }
             
             let first = this.letters[0];
             
             if (first.type === 'PIECE') {
-                // This is like "Nf3" - piece move
-                return this.readPieceMove();
+                return this.parsePieceMove();
             } else if (first.type === 'COLUMN') {
-                // This is like "e4" - pawn move
-                return this.readPawnMove();
+                return this.parsePawnMove();
             } else {
-                throw new Error("Move must start with piece or column");
+                throw new Error("SYNTAX ERROR: Move must start with piece or column");
             }
         },
 
-        // Read piece moves like "Nf3"
-        readPieceMove() {
-            let piece = this.getNextLetter('PIECE');
-            let target = this.readSquare();
+        parsePieceMove() {
+            let piece = this.consumeToken('PIECE');
+            let target = this.parseSquare();
             
             return {
                 type: 'piece',
@@ -200,17 +132,16 @@ function chessCompiler() {
             };
         },
 
-        // Read pawn moves like "e4" or "exd5"
-        readPawnMove() {
+        parsePawnMove() {
             let captureColumn = null;
             
-            // Check if this is a capture like "exd5"
+            // Check for capture notation like "exd5"
             if (this.where + 1 < this.letters.length && this.letters[this.where + 1].type === 'CAPTURE') {
-                captureColumn = this.getNextLetter('COLUMN');
-                this.getNextLetter('CAPTURE'); // Skip the 'x'
+                captureColumn = this.consumeToken('COLUMN');
+                this.consumeToken('CAPTURE');
             }
             
-            let target = this.readSquare();
+            let target = this.parseSquare();
             
             return {
                 type: 'pawn',
@@ -219,180 +150,273 @@ function chessCompiler() {
             };
         },
 
-        // Read a square like "f3"
-        readSquare() {
-            let column = this.getNextLetter('COLUMN');
-            let row = this.getNextLetter('ROW');
+        parseSquare() {
+            let column = this.consumeToken('COLUMN');
+            let row = this.consumeToken('ROW');
             return column + row;
         },
 
-        // Get the next letter of a specific type
-        getNextLetter(expectedType) {
+        consumeToken(expectedType) {
             if (this.where >= this.letters.length) {
-                throw new Error("Ran out of letters, expected " + expectedType);
+                throw new Error("SYNTAX ERROR: Unexpected end of input, expected " + expectedType);
             }
             
             let current = this.letters[this.where];
             if (current.type !== expectedType) {
-                throw new Error("Expected " + expectedType + " but got " + current.type);
+                throw new Error("SYNTAX ERROR: Expected " + expectedType + " but got " + current.type);
             }
             
             this.where++;
             return current.letter;
         },
 
-        // STEP 3: Find which chess piece should move
+        // ==========================================
+        // PHASE 4: SEMANTIC ANALYSIS
+        // ==========================================
+        
         findChessPiece(moveInfo) {
-            console.log("STEP 3: Finding chess piece");
+            console.log("PHASE 4: SEMANTIC ANALYSIS - Finding target piece");
             
             let myPieces = (this.currentPlayer === 'p1') ? this.p1 : this.p2;
             
             if (moveInfo.type === 'piece') {
                 return this.findSpecificPiece(myPieces, moveInfo.piece, moveInfo.target);
             } else {
-                return this.findPawn(myPieces, moveInfo);
+                return this.findPawnForMove(myPieces, moveInfo);
             }
         },
 
-        // Find a specific piece like knight or queen
         findSpecificPiece(myPieces, pieceType, target) {
             let pieceMap = {
                 'K': 'king', 'Q': 'queen', 'R': 'rook', 
                 'B': 'bishop', 'N': 'knight'
             };
             
-            let looking_for = pieceMap[pieceType];
-            let found = [];
+            let targetPieceType = pieceMap[pieceType];
+            let candidates = [];
             
             // Find all pieces of this type
-            for (let i = 0; i < myPieces.length; i++) {
-                if (myPieces[i].type === looking_for) {
-                    found.push(myPieces[i]);
+            for (let piece of myPieces) {
+                if (piece.type === targetPieceType) {
+                    candidates.push(piece);
                 }
             }
             
-            if (found.length === 0) {
-                throw new Error("I can't find any " + looking_for);
+            if (candidates.length === 0) {
+                throw new Error("SEMANTIC ERROR: No " + targetPieceType + " found");
             }
             
-            // Check which ones can actually move there
-            let canMove = [];
-            for (let i = 0; i < found.length; i++) {
-                if (this.canPieceMoveThere(found[i], target)) {
-                    canMove.push(found[i]);
+            // Filter by pieces that can legally move to target
+            let legalCandidates = [];
+            for (let piece of candidates) {
+                try {
+                    this.validateMove(piece, target);
+                    legalCandidates.push(piece);
+                } catch (error) {
+                    // This piece can't make the move
                 }
             }
             
-            if (canMove.length === 0) {
-                throw new Error("No " + looking_for + " can move to " + target);
+            if (legalCandidates.length === 0) {
+                throw new Error("SEMANTIC ERROR: No " + targetPieceType + " can move to " + target);
             }
             
-            if (canMove.length > 1) {
-                throw new Error("Too many " + looking_for + "s can move to " + target);
+            if (legalCandidates.length > 1) {
+                throw new Error("SEMANTIC ERROR: Ambiguous move - multiple " + targetPieceType + "s can move to " + target);
             }
             
-            return canMove[0];
+            return legalCandidates[0];
         },
 
-        // Find a pawn
-        findPawn(myPieces, moveInfo) {
-            let found = [];
+        findPawnForMove(myPieces, moveInfo) {
+            let candidates = [];
             
-            // Find pawns that could make this move
-            for (let i = 0; i < myPieces.length; i++) {
-                let piece = myPieces[i];
+            for (let piece of myPieces) {
                 if (piece.type !== 'pawn') continue;
                 
                 if (moveInfo.captureColumn) {
-                    // Capturing pawn - must be on the right column
+                    // Capture move - pawn must be on capture column
                     if (piece.position[0] === moveInfo.captureColumn) {
-                        found.push(piece);
+                        candidates.push(piece);
                     }
                 } else {
-                    // Normal pawn move - must be on same column as target
+                    // Normal move - pawn must be on same file as target
                     if (piece.position[0] === moveInfo.target[0]) {
-                        found.push(piece);
+                        candidates.push(piece);
                     }
                 }
             }
             
-            if (found.length === 0) {
-                throw new Error("I can't find a pawn for this move");
+            if (candidates.length === 0) {
+                throw new Error("SEMANTIC ERROR: No pawn can make this move");
             }
             
-            // Check which ones can actually move there
-            let canMove = [];
-            for (let i = 0; i < found.length; i++) {
-                if (this.canPieceMoveThere(found[i], moveInfo.target)) {
-                    canMove.push(found[i]);
+            // Filter by legal moves
+            let legalCandidates = [];
+            for (let piece of candidates) {
+                try {
+                    this.validateMove(piece, moveInfo.target);
+                    legalCandidates.push(piece);
+                } catch (error) {
+                    // This pawn can't make the move
                 }
             }
             
-            if (canMove.length === 0) {
-                throw new Error("No pawn can move to " + moveInfo.target);
+            if (legalCandidates.length === 0) {
+                throw new Error("SEMANTIC ERROR: No pawn can legally move to " + moveInfo.target);
             }
             
-            if (canMove.length > 1) {
-                throw new Error("Too many pawns can move to " + moveInfo.target);
+            if (legalCandidates.length > 1) {
+                throw new Error("SEMANTIC ERROR: Ambiguous pawn move");
             }
             
-            return canMove[0];
+            return legalCandidates[0];
         },
 
-        // STEP 4: Check if the move is legal
-        checkIfMoveIsOk(piece, target) {
-            console.log("STEP 4: Checking if move is legal");
+        // ==========================================
+        // PHASE 5: MOVE VALIDATION
+        // ==========================================
+        
+        validateMove(piece, target) {
+            console.log("PHASE 5: MOVE VALIDATION - Checking legality");
             
-            // Check if target square exists
+            // Basic target validation
+            this.validateTarget(target);
+            
+            // Piece movement pattern validation
+            if (!this.canPieceMoveThere(piece, target)) {
+                throw new Error("MOVE ERROR: " + piece.type + " cannot move to " + target);
+            }
+            
+            // Path obstruction validation
+            if (!this.isPathEmpty(piece, target)) {
+                throw new Error("MOVE ERROR: Path blocked to " + target);
+            }
+            
+            // Own piece capture prevention
+            let pieceAtTarget = this.whatPieceIsAt(target);
+            if (pieceAtTarget && this.isMyPiece(pieceAtTarget)) {
+                throw new Error("MOVE ERROR: Cannot capture your own piece at " + target);
+            }
+            
+            // King safety validation
+            if (this.wouldMoveLeaveKingInCheck(piece, target)) {
+                throw new Error("MOVE ERROR: This move would leave your king in check!");
+            }
+            
+            console.log("✅ Move validation passed");
+        },
+
+        validateTarget(target) {
             if (target.length !== 2) {
-                throw new Error("Bad target square: " + target);
+                throw new Error("MOVE ERROR: Invalid target square format");
             }
             
             let column = target[0];
             let row = target[1];
             
             if (column < 'a' || column > 'h' || row < '1' || row > '8') {
-                throw new Error("Target square doesn't exist: " + target);
+                throw new Error("MOVE ERROR: Target square " + target + " is off the board");
             }
-            
-            // Check if trying to capture own piece FIRST (most important check!)
-            let pieceAtTarget = this.whatPieceIsAt(target);
-            if (pieceAtTarget && this.isMyPiece(pieceAtTarget)) {
-                console.log("BLOCKED: Trying to capture own piece " + pieceAtTarget.name + " at " + target);
-                throw new Error("ILLEGAL: Cannot capture your own piece at " + target);
-            }
-            
-            // Check if piece can move in that pattern
-            if (!this.canPieceMoveThere(piece, target)) {
-                throw new Error(piece.type + " cannot move to " + target);
-            }
-            
-            // Check if path is blocked
-            if (!this.isPathEmpty(piece, target)) {
-                throw new Error("Path is blocked to " + target);
-            }
-            
-            // NEW: Check if this move would leave your own king in check
-            if (this.wouldMoveLeaveKingInCheck(piece, target)) {
-                throw new Error("ILLEGAL: This move would leave your king in check!");
-            }
-            
-            console.log("✅ Move is legal!");
         },
 
-        // NEW: Check if a move would leave your own king in check
-        wouldMoveLeaveKingInCheck(piece, target) {
-            console.log(`Checking if moving ${piece.name} to ${target} would leave king in check`);
+        // ==========================================
+        // PHASE 6: PIECE MOVEMENT RULES
+        // ==========================================
+        
+        canPieceMoveThere(piece, target) {
+            let from = piece.position;
+            let fromCol = from[0].charCodeAt(0) - 97;
+            let fromRow = parseInt(from[1]) - 1;
+            let toCol = target[0].charCodeAt(0) - 97;
+            let toRow = parseInt(target[1]) - 1;
             
-            // Save the current state
+            let colDiff = Math.abs(toCol - fromCol);
+            let rowDiff = Math.abs(toRow - fromRow);
+            
+            switch (piece.type) {
+                case 'pawn':
+                    return this.validatePawnMove(piece, from, target, fromCol, fromRow, toCol, toRow);
+                case 'rook':
+                    return (colDiff === 0 || rowDiff === 0);
+                case 'bishop':
+                    return (colDiff === rowDiff);
+                case 'queen':
+                    return (colDiff === 0 || rowDiff === 0 || colDiff === rowDiff);
+                case 'knight':
+                    return ((colDiff === 2 && rowDiff === 1) || (colDiff === 1 && rowDiff === 2));
+                case 'king':
+                    return (colDiff <= 1 && rowDiff <= 1 && (colDiff + rowDiff > 0));
+                default:
+                    return false;
+            }
+        },
+
+        validatePawnMove(piece, from, to, fromCol, fromRow, toCol, toRow) {
+            let isPlayer1 = this.p1.includes(piece);
+            let direction = isPlayer1 ? 1 : -1;
+            let startRow = isPlayer1 ? 1 : 6;
+            
+            let colDiff = Math.abs(toCol - fromCol);
+            let rowDiff = toRow - fromRow;
+            let pieceAtTarget = this.whatPieceIsAt(to);
+            
+            // Forward movement
+            if (colDiff === 0 && !pieceAtTarget) {
+                if (rowDiff === direction) return true; // One square
+                if (rowDiff === 2 * direction && fromRow === startRow) return true; // Two squares from start
+            }
+            
+            // Diagonal capture
+            if (colDiff === 1 && rowDiff === direction && pieceAtTarget) {
+                return !this.isMyPiece(pieceAtTarget);
+            }
+            
+            return false;
+        },
+
+        isPathEmpty(piece, target) {
+            if (piece.type === 'knight' || piece.type === 'king') {
+                return true; // These pieces jump/move one square
+            }
+            
+            let from = piece.position;
+            let fromCol = from[0].charCodeAt(0) - 97;
+            let fromRow = parseInt(from[1]) - 1;
+            let toCol = target[0].charCodeAt(0) - 97;
+            let toRow = parseInt(target[1]) - 1;
+            
+            let colStep = Math.sign(toCol - fromCol);
+            let rowStep = Math.sign(toRow - fromRow);
+            
+            let checkCol = fromCol + colStep;
+            let checkRow = fromRow + rowStep;
+            
+            while (checkCol !== toCol || checkRow !== toRow) {
+                let checkSquare = String.fromCharCode(97 + checkCol) + (checkRow + 1);
+                if (this.whatPieceIsAt(checkSquare)) {
+                    return false;
+                }
+                checkCol += colStep;
+                checkRow += rowStep;
+            }
+            
+            return true;
+        },
+
+        // ==========================================
+        // PHASE 7: KING SAFETY ANALYSIS
+        // ==========================================
+        
+        wouldMoveLeaveKingInCheck(piece, target) {
+            // Save current state
             let originalPosition = piece.position;
             let capturedPiece = this.whatPieceIsAt(target);
             let capturedFrom = null;
             
-            // Temporarily make the move
+            // Simulate move
             piece.position = target;
             if (capturedPiece) {
-                // Remove captured piece temporarily
                 if (this.p1.includes(capturedPiece)) {
                     capturedFrom = 'p1';
                     this.p1 = this.p1.filter(p => p !== capturedPiece);
@@ -402,34 +426,24 @@ function chessCompiler() {
                 }
             }
             
-            // Find my king
+            // Check if my king would be in check
             let myPieces = (this.currentPlayer === 'p1') ? this.p1 : this.p2;
-            let myKing = null;
-            for (let i = 0; i < myPieces.length; i++) {
-                if (myPieces[i].type === 'king') {
-                    myKing = myPieces[i];
-                    break;
-                }
-            }
-            
+            let myKing = myPieces.find(p => p.type === 'king');
             let wouldBeInCheck = false;
             
             if (myKing) {
-                // Check if any opponent piece can attack my king
                 let opponentPieces = (this.currentPlayer === 'p1') ? this.p2 : this.p1;
                 
-                for (let i = 0; i < opponentPieces.length; i++) {
-                    let opponentPiece = opponentPieces[i];
+                for (let opponentPiece of opponentPieces) {
                     if (this.canPieceMoveThere(opponentPiece, myKing.position) && 
                         this.isPathEmpty(opponentPiece, myKing.position)) {
-                        console.log(`${opponentPiece.name} would attack king at ${myKing.position}`);
                         wouldBeInCheck = true;
                         break;
                     }
                 }
             }
             
-            // Restore the original state
+            // Restore state
             piece.position = originalPosition;
             if (capturedPiece) {
                 if (capturedFrom === 'p1') {
@@ -442,260 +456,146 @@ function chessCompiler() {
             return wouldBeInCheck;
         },
 
-        // Check if a piece can move to a target (ignoring other pieces)
-        canPieceMoveThere(piece, target) {
-            let from = piece.position;
-            let fromCol = from[0].charCodeAt(0) - 97; // a=0, b=1, etc
-            let fromRow = parseInt(from[1]) - 1;      // 1=0, 2=1, etc
-            let toCol = target[0].charCodeAt(0) - 97;
-            let toRow = parseInt(target[1]) - 1;
+        // ==========================================
+        // PHASE 8: GAME STATE ANALYSIS
+        // ==========================================
+        
+        checkForGameEnd() {
+            console.log("PHASE 8: GAME STATE ANALYSIS - Checking for game end");
             
-            let colDiff = Math.abs(toCol - fromCol);
-            let rowDiff = Math.abs(toRow - fromRow);
+            let currentPieces = (this.currentPlayer === 'p1') ? this.p1 : this.p2;
+            let legalMoves = [];
             
-            if (piece.type === 'pawn') {
-                return this.canPawnMoveThere(piece, from, target, fromCol, fromRow, toCol, toRow);
-            } else if (piece.type === 'rook') {
-                return (colDiff === 0 || rowDiff === 0); // Straight lines only
-            } else if (piece.type === 'bishop') {
-                return (colDiff === rowDiff); // Diagonal only
-            } else if (piece.type === 'queen') {
-                return (colDiff === 0 || rowDiff === 0 || colDiff === rowDiff); // Rook + Bishop
-            } else if (piece.type === 'knight') {
-                return ((colDiff === 2 && rowDiff === 1) || (colDiff === 1 && rowDiff === 2)); // L-shape
-            } else if (piece.type === 'king') {
-                return (colDiff <= 1 && rowDiff <= 1 && (colDiff + rowDiff > 0)); // One square any direction
+            // Find all legal moves for current player
+            for (let piece of currentPieces) {
+                let pieceMoves = this.findAllLegalMovesForPiece(piece);
+                legalMoves = legalMoves.concat(pieceMoves);
             }
             
-            return false;
-        },
-
-        // Special pawn movement rules
-        canPawnMoveThere(piece, from, to, fromCol, fromRow, toCol, toRow) {
-            let isPlayer1 = this.p1.includes(piece);
-            let direction = isPlayer1 ? 1 : -1; // Player 1 goes up, Player 2 goes down
-            let startRow = isPlayer1 ? 1 : 6;   // Starting row (0-indexed)
+            console.log(`Found ${legalMoves.length} legal moves for ${this.currentPlayer}`);
             
-            let colDiff = Math.abs(toCol - fromCol);
-            let rowDiff = toRow - fromRow;
-            let pieceAtTarget = this.whatPieceIsAt(to);
-            
-            // Moving forward
-            if (colDiff === 0 && !pieceAtTarget) {
-                if (rowDiff === direction) {
-                    return true; // One square forward
+            if (legalMoves.length === 0) {
+                // No legal moves - either checkmate or stalemate
+                let inCheck = this.isCurrentPlayerInCheck();
+                
+                if (inCheck) {
+                    this.gameOver = true;
+                    this.gameResult = `CHECKMATE! ${this.currentPlayer === 'p1' ? 'Player 2' : 'Player 1'} wins!`;
+                    alert(this.gameResult);
+                    this.history += `\n=== GAME OVER ===\n${this.gameResult}\n`;
+                } else {
+                    this.gameOver = true;
+                    this.gameResult = "STALEMATE! The game is a draw.";
+                    alert(this.gameResult);
+                    this.history += `\n=== GAME OVER ===\n${this.gameResult}\n`;
                 }
-                if (rowDiff === 2 * direction && fromRow === startRow) {
-                    return true; // Two squares from start
-                }
-            }
-            
-            // Capturing diagonally
-            if (colDiff === 1 && rowDiff === direction && pieceAtTarget) {
-                return !this.isMyPiece(pieceAtTarget); // Can capture enemy piece
-            }
-            
-            return false;
-        },
-
-        // Check if path between two squares is empty
-        isPathEmpty(piece, target) {
-            // Knights and kings don't need to check path
-            if (piece.type === 'knight' || piece.type === 'king') {
+                
                 return true;
             }
             
-            let from = piece.position;
-            let fromCol = from[0].charCodeAt(0) - 97;
-            let fromRow = parseInt(from[1]) - 1;
-            let toCol = target[0].charCodeAt(0) - 97;
-            let toRow = parseInt(target[1]) - 1;
-            
-            let colStep = 0;
-            let rowStep = 0;
-            
-            if (toCol > fromCol) colStep = 1;
-            if (toCol < fromCol) colStep = -1;
-            if (toRow > fromRow) rowStep = 1;
-            if (toRow < fromRow) rowStep = -1;
-            
-            let checkCol = fromCol + colStep;
-            let checkRow = fromRow + rowStep;
-            
-            // Check each square along the path
-            while (checkCol !== toCol || checkRow !== toRow) {
-                let checkSquare = String.fromCharCode(97 + checkCol) + (checkRow + 1);
-                if (this.whatPieceIsAt(checkSquare)) {
-                    console.log("Path blocked at " + checkSquare);
-                    return false;
-                }
-                checkCol += colStep;
-                checkRow += rowStep;
-            }
-            
-            return true;
+            return false;
         },
 
-        // What piece is at a square?
-        whatPieceIsAt(square) {
-            for (let i = 0; i < this.p1.length; i++) {
-                if (this.p1[i].position === square) {
-                    return this.p1[i];
+        findAllLegalMovesForPiece(piece) {
+            let legalMoves = [];
+            const columns = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+            const rows = [1, 2, 3, 4, 5, 6, 7, 8];
+            
+            for (let col of columns) {
+                for (let row of rows) {
+                    let targetSquare = col + row;
+                    
+                    if (targetSquare === piece.position) continue;
+                    
+                    try {
+                        this.validateMove(piece, targetSquare);
+                        legalMoves.push({
+                            piece: piece,
+                            target: targetSquare
+                        });
+                    } catch (error) {
+                        // Move is illegal, skip it
+                    }
                 }
             }
-            for (let i = 0; i < this.p2.length; i++) {
-                if (this.p2[i].position === square) {
-                    return this.p2[i];
+            
+            return legalMoves;
+        },
+
+        isCurrentPlayerInCheck() {
+            let myPieces = (this.currentPlayer === 'p1') ? this.p1 : this.p2;
+            let myKing = myPieces.find(p => p.type === 'king');
+            
+            if (!myKing) return false;
+            
+            let opponentPieces = (this.currentPlayer === 'p1') ? this.p2 : this.p1;
+            
+            for (let piece of opponentPieces) {
+                if (this.canPieceMoveThere(piece, myKing.position) && 
+                    this.isPathEmpty(piece, myKing.position)) {
+                    return true;
                 }
             }
-            return null;
+            
+            return false;
         },
 
-        // Is this piece mine?
-        isMyPiece(piece) {
-            let isMine = false;
+        // ==========================================
+        // PHASE 9: MOVE EXECUTION
+        // ==========================================
+        
+        executeMove(piece, target) {
+            console.log("PHASE 9: MOVE EXECUTION");
             
-            if (this.currentPlayer === 'p1') {
-                isMine = this.p1.includes(piece);
-            } else {
-                isMine = this.p2.includes(piece);
-            }
-            
-            console.log(`Checking if ${piece.name} belongs to ${this.currentPlayer}: ${isMine}`);
-            return isMine;
-        },
-
-        // EXISTING GAME FUNCTIONS
-        move(item, to) {
-            // Check if there's a piece to capture
-            const capturedPiece = this.p1.find(p => p.position === to) || this.p2.find(p => p.position === to);
-            if (capturedPiece && capturedPiece !== item) {
+            // Capture handling
+            const capturedPiece = this.whatPieceIsAt(target);
+            if (capturedPiece && capturedPiece !== piece) {
                 if (this.p1.includes(capturedPiece)) {
                     this.p1 = this.p1.filter(p => p !== capturedPiece);
                 } else {
                     this.p2 = this.p2.filter(p => p !== capturedPiece);
                 }
+                console.log(`Captured: ${capturedPiece.name}`);
             }
             
-            item.position = to;
-            this.from = null;
-            this.to = null;
-            this.clearPredictions(); // Clear predictions after move
+            // Move piece
+            let from = piece.position;
+            piece.position = target;
+            
+            // Generate notation
+            let notation = this.generateChessNotation(piece, from, target);
+            
+            // Switch turns
             this.currentPlayer = this.currentPlayer === 'p1' ? 'p2' : 'p1';
-        },
-        
-        tileSymbol(position) {
-            const piece = this.p1.find(p => p.position === position) || this.p2.find(p => p.position === position);
-            return piece ? piece.symbol : '';
-        },
-        
-        selectTile(position) {
-            if (this.from) {
-                const piece = this.p1.find(p => p.position === this.from) || this.p2.find(p => p.position === this.from);
-                if (piece && position !== this.from) {
-                    const isP1Piece = this.p1.includes(piece);
-                    if ((isP1Piece && this.currentPlayer === 'p1') || (!isP1Piece && this.currentPlayer === 'p2')) {
-                        
-                        // Check if the move is legal before executing
-                        try {
-                            this.checkIfMoveIsOk(piece, position);
-                            
-                            // Store the starting position before it gets cleared
-                            let startPosition = this.from;
-                            
-                            // Execute the move
-                            this.to = position;
-                            this.move(piece, this.to);
-                            
-                            // Generate chess notation for this move 
-                            let chessNotation = this.generateChessNotation(piece, startPosition, position);
-                            
-                            // Check if move puts opponent in check 
-                            let checkStatus = this.checkForCheck();
-                            if (checkStatus.inCheck) {
-                                chessNotation += "+";
-                                alert(`CHECK! ${checkStatus.player} king is in check and must move!`);
-                            }
-                            
-                            // Record in history with both formats 
-                            this.history += `Mouse Move: ${piece.name} from ${startPosition} to ${position} (${chessNotation})\n`;
-                            console.log(`Mouse move: ${piece.name} ${startPosition} -> ${position} = ${chessNotation}`);
-                            
-                        } catch (error) {
-                            alert(`Illegal Move: ${error.message}`);
-                            this.history += `Illegal Mouse Move: ${piece.name} ${this.from} to ${position} - ${error.message}\n`;
-                        }
-                        
-                    } else {
-                        this.from = null;
-                        this.clearPredictions();
-                        alert(`It's ${this.currentPlayer === 'p1' ? 'Player 1' : 'Player 2'}'s turn!`);
-                    }
-                } else {
-                    this.from = null;
-                    this.clearPredictions();
-                }
-            } else {
-                const piece = this.p1.find(p => p.position === position) || this.p2.find(p => p.position === position);
-                if (piece) {
-                    const isP1Piece = this.p1.includes(piece);
-                    if ((isP1Piece && this.currentPlayer === 'p1') || (!isP1Piece && this.currentPlayer === 'p2')) {
-                        this.from = position;
-                        this.predictMoves(piece); // NEW: Predict moves when selecting a piece
-                        console.log(`Selected piece: ${piece.name} at ${position}`);
-                        this.history += `Selected: ${piece.name} at ${position}\n`;
-                    } else {
-                        alert(`It's ${this.currentPlayer === 'p1' ? 'Player 1' : 'Player 2'}'s turn!`);
-                    }
-                }
-            }
-        },
-
-        // Generate chess notation for a move 
-        generateChessNotation(piece, from, to) {
-            if (piece.type === 'pawn') {
-                // Check if it's a capture
-                let capturedPiece = this.whatPieceIsAt(to);
-                if (capturedPiece && !this.isMyPiece(capturedPiece)) {
-                    return from[0] + "x" + to; // Like "exd5"
-                } else {
-                    return to; // Like "e4"
-                }
-            } else {
-                // Piece moves
-                let pieceSymbol = piece.type[0].toUpperCase(); // K, Q, R, B, N
-                let capturedPiece = this.whatPieceIsAt(to);
-                
-                if (capturedPiece && !this.isMyPiece(capturedPiece)) {
-                    return pieceSymbol + "x" + to; // Like "Nxf7"
-                } else {
-                    return pieceSymbol + to; // Like "Nf3"
-                }
-            }
-        },
-
-        // Check if current move puts opponent in check 
-        checkForCheck() {
-            // Find the opponent's king (AFTER the turn has switched)
-            let opponentPieces = (this.currentPlayer === 'p1') ? this.p2 : this.p1;
-            let opponentKing = null;
             
-            for (let i = 0; i < opponentPieces.length; i++) {
-                if (opponentPieces[i].type === 'king') {
-                    opponentKing = opponentPieces[i];
-                    break;
-                }
+            // Check for check
+            let checkStatus = this.checkForOpponentInCheck();
+            if (checkStatus.inCheck) {
+                notation += "+";
+                // Don't alert immediately - check for game end first
             }
+            
+            // Check for game end
+            if (!this.checkForGameEnd() && checkStatus.inCheck) {
+                alert(`CHECK! ${checkStatus.player} king is in check and must move!`);
+            }
+            
+            return notation;
+        },
+
+        checkForOpponentInCheck() {
+            // Find opponent's king (current player switched already)
+            let opponentPieces = (this.currentPlayer === 'p1') ? this.p2 : this.p1;
+            let opponentKing = opponentPieces.find(p => p.type === 'king');
             
             if (!opponentKing) {
                 return { inCheck: false, player: null };
             }
             
-            // Check if any of my pieces (the player who just moved) can attack the opponent's king
-            let myPieces = (this.currentPlayer === 'p1') ? this.p1 : this.p2;
+            // Check if any of the previous player's pieces can attack opponent king
+            let attackingPieces = (this.currentPlayer === 'p1') ? this.p1 : this.p2;
             
-            for (let i = 0; i < myPieces.length; i++) {
-                let piece = myPieces[i];
+            for (let piece of attackingPieces) {
                 if (this.canPieceMoveThere(piece, opponentKing.position) && 
                     this.isPathEmpty(piece, opponentKing.position)) {
                     
@@ -706,5 +606,193 @@ function chessCompiler() {
             
             return { inCheck: false, player: null };
         },
+
+        // ==========================================
+        // PHASE 10: MOVE PREDICTION & UI
+        // ==========================================
+        
+        predictMoves(piece) {
+            console.log("PHASE 10: MOVE PREDICTION");
+            this.predictedMoves = [];
+            
+            const columns = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+            const rows = [1, 2, 3, 4, 5, 6, 7, 8];
+            
+            for (let col of columns) {
+                for (let row of rows) {
+                    let targetSquare = col + row;
+                    
+                    if (targetSquare === piece.position) continue;
+                    
+                    try {
+                        this.validateMove(piece, targetSquare);
+                        
+                        let pieceAtTarget = this.whatPieceIsAt(targetSquare);
+                        let isCapture = pieceAtTarget && !this.isMyPiece(pieceAtTarget);
+                        
+                        this.predictedMoves.push({
+                            square: targetSquare,
+                            isCapture: isCapture
+                        });
+                        
+                    } catch (error) {
+                        // Move is illegal
+                    }
+                }
+            }
+            
+            console.log(`Predicted ${this.predictedMoves.length} legal moves`);
+        },
+
+        isPredictedMove(square) {
+            return this.predictedMoves.some(move => move.square === square);
+        },
+
+        isPredictedCapture(square) {
+            return this.predictedMoves.some(move => move.square === square && move.isCapture);
+        },
+
+        clearPredictions() {
+            this.predictedMoves = [];
+        },
+
+        // ==========================================
+        // MAIN COMPILER ENTRY POINTS
+        // ==========================================
+        
+        scanMove() {
+            if (this.gameOver) {
+                alert("Game is over! " + this.gameResult);
+                return;
+            }
+            
+            try {
+                console.log("=== CHESS MOVE COMPILER STARTED ===");
+                console.log("Input: " + this.line);
+                
+                // PHASE 2: Lexical Analysis
+                this.breakIntoLetters();
+                
+                // PHASE 3: Syntax Analysis
+                let moveInfo = this.figureOutMove();
+                
+                // PHASE 4: Semantic Analysis
+                let piece = this.findChessPiece(moveInfo);
+                
+                // PHASE 5: Move Validation
+                this.validateMove(piece, moveInfo.target);
+                
+                // PHASE 9: Move Execution
+                let notation = this.executeMove(piece, moveInfo.target);
+                
+                this.history += `Text Move: ${this.line} → ${notation}\n`;
+                this.line = '';
+                this.clearPredictions();
+                
+                console.log("=== CHESS MOVE COMPILER COMPLETED ===");
+                
+            } catch (error) {
+                alert("COMPILER ERROR: " + error.message);
+                this.history += `Error: ${this.line} - ${error.message}\n`;
+                console.log("=== CHESS MOVE COMPILER FAILED ===");
+            }
+        },
+
+        selectTile(position) {
+            if (this.gameOver) {
+                alert("Game is over! " + this.gameResult);
+                return;
+            }
+            
+            if (this.from) {
+                // Second click - try to move
+                const piece = this.whatPieceIsAt(this.from);
+                if (piece && position !== this.from) {
+                    const isMyPiece = this.isMyPiece(piece);
+                    if (isMyPiece) {
+                        try {
+                            this.validateMove(piece, position);
+                            
+                            let startPosition = this.from;
+                            let notation = this.executeMove(piece, position);
+                            
+                            this.history += `Mouse Move: ${piece.name} ${startPosition} → ${position} (${notation})\n`;
+                            console.log(`Mouse move executed: ${notation}`);
+                            
+                        } catch (error) {
+                            alert(`Illegal Move: ${error.message}`);
+                            this.history += `Illegal Move: ${piece.name} ${this.from} → ${position} - ${error.message}\n`;
+                        }
+                    } else {
+                        alert(`It's ${this.currentPlayer === 'p1' ? 'Player 1' : 'Player 2'}'s turn!`);
+                    }
+                }
+                this.from = null;
+                this.clearPredictions();
+            } else {
+                // First click - select piece
+                const piece = this.whatPieceIsAt(position);
+                if (piece && this.isMyPiece(piece)) {
+                    this.from = position;
+                    this.predictMoves(piece);
+                    console.log(`Selected: ${piece.name} at ${position}`);
+                    this.history += `Selected: ${piece.name} at ${position}\n`;
+                } else if (piece) {
+                    alert(`It's ${this.currentPlayer === 'p1' ? 'Player 1' : 'Player 2'}'s turn!`);
+                }
+            }
+        },
+
+        // ==========================================
+        // UTILITY FUNCTIONS
+        // ==========================================
+        
+        tileSymbol(position) {
+            const piece = this.whatPieceIsAt(position);
+            return piece ? piece.symbol : '';
+        },
+        
+        whatPieceIsAt(square) {
+            for (let piece of this.p1) {
+                if (piece.position === square) return piece;
+            }
+            for (let piece of this.p2) {
+                if (piece.position === square) return piece;
+            }
+            return null;
+        },
+
+        isMyPiece(piece) {
+            if (this.currentPlayer === 'p1') {
+                return this.p1.includes(piece);
+            } else {
+                return this.p2.includes(piece);
+            }
+        },
+
+        generateChessNotation(piece, from, to) {
+            if (piece.type === 'pawn') {
+                let capturedPiece = this.whatPieceIsAt(to);
+                if (capturedPiece && !this.isMyPiece(capturedPiece)) {
+                    return from[0] + "x" + to; // e.g., "exd5"
+                } else {
+                    return to; // e.g., "e4"
+                }
+            } else {
+                let pieceSymbol = piece.type[0].toUpperCase(); // K, Q, R, B, N
+                let capturedPiece = this.whatPieceIsAt(to);
+                
+                if (capturedPiece && !this.isMyPiece(capturedPiece)) {
+                    return pieceSymbol + "x" + to; // e.g., "Nxf7"
+                } else {
+                    return pieceSymbol + to; // e.g., "Nf3"
+                }
+            }
+        },
+
+        // Legacy move function for compatibility
+        move(item, to) {
+            this.executeMove(item, to);
+        }
     }
 }
